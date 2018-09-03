@@ -1,4 +1,5 @@
 #include "process.hpp"
+#include <libssh/callbacks.h>
 #include <stdexcept>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -52,4 +53,86 @@ int LocalProcess::wait()
     }
 
     return status;
+}
+
+
+
+RemoteProcess::RemoteProcess(ssh_session session, const std::vector<std::string>& args)
+{
+    channel = ssh_channel_new(session);
+    if (channel == nullptr) {
+        throw std::runtime_error(ssh_get_error(session));
+    }
+
+    int rc = ssh_channel_open_session(channel);
+    if (rc != SSH_OK) {
+        ssh_channel_free(channel);
+        channel = nullptr;
+        throw std::runtime_error(ssh_get_error(session));
+    }
+
+    // TODO: no libssh function that takes a list of strings as args?
+    // TODO: probably missing some escape sequences
+    for (auto& a : args) {
+        cmd += a + " ";
+    }
+
+    // setup callback so we can get exit status
+    struct ssh_channel_callbacks_struct cb = {
+        .userdata = this,
+        .channel_exit_status_function = staticOnExitStatus
+    };
+    ssh_callbacks_init(&cb);
+    if (SSH_OK != ssh_set_channel_callbacks(channel, &cb)) {
+        ssh_channel_close(channel);
+        ssh_channel_free(channel);
+        channel = nullptr;
+        throw std::runtime_error(ssh_get_error(session));
+    }
+}
+
+void RemoteProcess::run()
+{
+    int rc = ssh_channel_request_exec(channel, cmd.c_str());
+    if (rc != SSH_OK) {
+        ssh_channel_close(channel);
+        ssh_channel_free(channel);
+        throw std::runtime_error("ssh_channel_request_exec failed");
+    }
+}
+
+int RemoteProcess::wait()
+{
+    std::unique_lock<std::mutex> lock(exitStatusMutex);
+    while (!exitStatusValid) {
+        exitStatusCond.wait(lock);
+    }
+
+    // cleanup channel
+    ssh_channel_close(channel);
+    ssh_channel_free(channel);
+    channel = nullptr;
+
+    return exitStatus;
+}
+
+void RemoteProcess::staticOnExitStatus(ssh_session session, ssh_channel channel, int status, void* userdata)
+{
+    // forward to member function
+    ((RemoteProcess*)userdata)->onExitStatus(session, channel, status);
+}
+
+void RemoteProcess::onExitStatus(ssh_session session, ssh_channel channel, int status)
+{
+    if (channel != this->channel) {
+        // something has gone horribly wrong
+        fprintf(stderr, "bad channel in exit status callback");
+        exit(1);
+    }
+
+    // set the exit status and notify anyone waiting on the condition variable
+    std::unique_lock<std::mutex> lock(exitStatusMutex);
+    exitStatusValid = true;
+    exitStatus = status;
+    exitStatusCond.notify_all();
 }
