@@ -1,4 +1,8 @@
 #pragma once
+#include <map>
+#include <vector>
+
+namespace Symbols {
 
 enum Terminals {
     VARNAME,    // must match the regex [A-Za-z_]\w* and have no quotes or escapes
@@ -13,7 +17,23 @@ enum Terminals {
     PIPE,       // |
     AMPERSAND,  // &
     
-    DEF_HOST,   // :=
+    COLON_EQ,   // :=
     LOG_OR,     // &&
     LOG_AND,    // ||
+
+    NUM_TERMINAL_SYMBOLS
 };
+
+enum NonTerminals {
+    SCRIPT = NUM_TERMINAL_SYMBOLS,
+    COMMAND,
+    ARG,
+    ARG_LIST,
+};
+
+inline bool isTerminal(int symbol)
+{
+    return symbol < NUM_TERMINAL_SYMBOLS;
+}
+
+}   // namespace symbols

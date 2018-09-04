@@ -1,149 +1,195 @@
 #include "parser.hpp"
-/*
-CommandList Parser::parse(const std::string& buf)
+#include "util.hpp"
+#include "symbols.hpp"
+#include <stack>
+
+using namespace Symbols;
+
+/**
+ * Helps us initialize the grammar when the process starts
+ */
+class FlasshGrammar : public ContextFreeGrammar {
+public:
+    FlasshGrammar();
+} flasshGrammar;
+
+/**
+ * flassh grammar definition
+ */
+FlasshGrammar::FlasshGrammar()
 {
-    tokenize(buf);
+    startSymbol = COMMAND;
 
-    CommandList ret;
-    
-    // for now, assume only simple commands, and that commands are always complete
-    std::vector<std::string> args;
-    while (!tokens.empty()) {
-        auto tok = tokens.front();
-        tokens.pop();
+    addRule({ COMMAND, { ARG_LIST, NEWLINE } });
 
-        if (tok.isOp && !args.empty()) {
-            ret.push_back(std::unique_ptr<Command>(new SimpleCommand(args)));
-            args.clear();
-        }
-        else {
-            args.push_back(tok.str);
-        }
-    }
-    if (!args.empty()) {
-        fprintf(stderr, "incomplete command\n");
-    }
+    addRule({ ARG_LIST, { ARG }});
+    addRule({ ARG_LIST, { ARG, SPACE, ARG_LIST } });
 
+    addRule({ ARG, { VARNAME } });
+    addRule({ ARG, { STR } });
+}
+
+
+
+/**
+ * ???
+ */
+struct PdaState {
+    // index of the production rule chosen at this point
+    unsigned int ruleChosen = 0;
+    // the PDA stack before substituting the chosen rule
+    SymbolStack symStack;
+    // the index of the next token to be read
+    size_t nextToken;
+};
+
+/**
+ * Stack used to perform depth-first search over the possible expansions
+ * of the production rules
+ */
+typedef std::stack<PdaState> DecisionStack;
+
+
+
+bool Parser::isComplete() const
+{
+    return lex.isComplete();
+}
+
+Command* Parser::popCommand()
+{
+    if (commands.empty())
+        return nullptr;
+
+    auto ret = commands.front();
+    commands.pop();
     return ret;
 }
-*/
-/**
- * Returns true if c is a quote character
- */
-static bool isQuote(char c)
+
+void Parser::parse(const std::string& buf)
 {
-    return c == '\'' || c == '\"';
+    lex.input(buf);
+
+    // if lexer got incomplete input, wait until we get more input
+    if (!lex.isComplete())
+        return;
+
+    // get tokens from the lexer
+    for (Token* tok = lex.popToken(); tok != nullptr; tok = lex.popToken()) {
+        tokens.push_back(tok);
+    }
+
+    // initial state
+    PdaState initialState;
+    initialState.ruleChosen = 0;
+    initialState.symStack.push(flasshGrammar.startSymbol);
+    initialState.nextToken = 0;
+
+    // push initial state onto decision stack
+    DecisionStack dstk;
+    dstk.push(initialState);
+
+    while (!dstk.empty() && !dstk.top().symStack.empty()) {
+        // get the top PDA state, and make a copy
+        auto state = dstk.top();
+        auto& symStack = state.symStack;
+
+        // find the production rule corresponding to the decision made
+        // if we ran out of rules, then we made a wrong decision higher up
+        int currentSymbol = state.symStack.top();
+        auto& rules = flasshGrammar.rules[currentSymbol];
+        if (state.ruleChosen >= rules.size()) {
+            dstk.pop();
+
+            // try the next rule on the previous decision
+            if (!dstk.empty())
+                ++dstk.top().ruleChosen;
+            continue;
+        }
+        auto rule = flasshGrammar.rules[currentSymbol][state.ruleChosen];
+
+        // make the substitution by popping the non-terminal and pushing the
+        // replacement symbols in right-to-left order
+        symStack.pop();
+        for (size_t i = 0; i < rule.replacement.size(); i++) {
+            symStack.push(rule.replacement[rule.replacement.size() - i - 1]);
+        }
+
+        // try to match terminal symbols
+        while (!symStack.empty() && isTerminal(symStack.top())) {
+            // check if there are any more tokens to read
+            if (tokens.size() <= state.nextToken)
+                break;
+ 
+            // check if the next token matches
+            if (tokens[state.nextToken]->symbol != symStack.top())
+                break;
+
+            // it matches, advance nextToken and pop off the PDA stack
+            ++state.nextToken;
+            symStack.pop();
+        }
+
+        // if the top of the stack is a terminal symbol, then we made a wrong decision
+        if (!symStack.empty() && isTerminal(symStack.top())) {
+            // try the next rule next time
+            ++dstk.top().ruleChosen;
+            continue;
+        }
+
+        // check if there's a new non-terminal symbol
+        if (!symStack.empty() && !isTerminal(symStack.top())) {
+            // try rules from the beginning next time
+            state.ruleChosen = 0;
+            dstk.push(state);
+        }
+        
+        if (symStack.empty()) {
+            // we're done!
+            break;
+        }
+    }
+
+    if (dstk.empty()) {
+        fprintf(stderr, "syntax error\n");
+        deleteTokens(tokens.size());
+        return;
+    }
+
+    // get a list of just the indices of the rules chosen
+    std::vector<int> decisionList(dstk.size());
+    while (!dstk.empty()) {
+        decisionList[dstk.size() - 1] = dstk.top().ruleChosen;
+        dstk.pop();
+    }
+
+    auto parseTree = ParseTreeNode::createParseTree(flasshGrammar, decisionList, tokens);
+
+    // build commands
+    parseTree->traverse([this](ParseTreeNode* node) {
+        buildCommands(node);
+    });
+
+    // FIXME
+    deleteTokens(tokens.size());
 }
 
-/**
- * Returns true if c is a command ending character
- */
-static bool isEnd(char c)
+void Parser::buildCommands(ParseTreeNode* n)
 {
-    return c == '\n' || c == ';';
-}
-
-/**
- * Returns true if c typically separates arguments or commands
- */
-static bool isSep(char c)
-{
-    return isspace(c) || isEnd(c);
-}
-
-/**
- * Returns true if the token following the given token would start a new command
- */
-static bool tokStartsNewCmd(const std::string& tok)
-{
-    return (tok == ";"  ||
-            tok == "|"  ||
-            tok == "||" ||
-            tok == "&&" ||
-            tok == "");     // empty string --> first token
-}
-/*
-void Parser::tokenize(const std::string& buf)
-{
-    for (auto c : buf) {
-        bool verbatim = tokState.prev == '\\' || tokState.curQuote != 0;
-
-        // figure out if current token is the first argument of a command
-        auto& prevTok = tokState.prevTok;
-        bool curTokIsCmd = prevTok.isOp && tokStartsNewCmd(prevTok.str);
-
-        // check start or end of quotes
-        if (isQuote(c)) {
-            if (tokState.prev == '\\') {
-                if (tokState.curQuote == 0 || tokState.curQuote == c) {
-                    // not in quote or matching quote, write " or '
-                    tokState.curTok.push_back(c);
-                }
-                else {
-                    // different quote type, write \" or \'
-                    tokState.curTok.push_back('\\');
-                    tokState.curTok.push_back(c);
-                }
-            }
-            else {
-                if (tokState.curQuote == 0) {
-                    // start quote
-                    tokState.curQuote = c;
-                }
-                else if (tokState.curQuote == c) {
-                    // matching end quote
-                    tokState.curQuote = 0;
-                }
-                else {
-                    // non-matching quote
-                    tokState.curTok.push_back(c);
-                }
-            }
+    if (n->getSymbol() == COMMAND) {
+        auto argNodes = n->findSymbol(ARG);
+        std::vector<std::string> args;
+        for (auto an : argNodes) {
+            args.push_back(an->concatTokens());
         }
-        // TODO: these conditionals could probably be expressed more simply
-        else if (isSep(c)) {
-            if (verbatim) {
-                // escaped or quoted space
-                tokState.curTok.push_back(c);
-            }
-            else {
-                if (!tokState.curTok.empty()) {
-                    // end of arg or command
-                    pushToken({ tokState.curTok, false, tokState.line, tokState.col });
-                }
-
-                if (isEnd(c)) {
-                    // \n and ; are the same thing
-                    pushToken({ ";", true, tokState.line, tokState.col });
-                }
-            }
-        }
-        else if (verbatim || c != '\\') {
-            // not a special character
-            tokState.curTok.push_back(c);
-        }
-
-        tokState.prev = c;
-        if (verbatim && c == '\\') {
-            // hack to handle multiple backslashes in a row
-            tokState.prev = 0;
-        }
-
-        // advance line or column number
-        if (c == '\n') {
-            ++tokState.line;
-            tokState.col = 1;
-        }
-        else {
-            ++tokState.col;
-        }
+        commands.push(new SimpleCommand(args));
     }
 }
 
-void Parser::pushToken(const Token& tok)
+void Parser::deleteTokens(size_t numTokens)
 {
-    tokens.push(tok);
-    tokState.prevTok = tok;
-    tokState.curTok.clear();
+    while (tokens.size() > 0 && numTokens > 0) {
+        delete tokens.front();
+        tokens.pop_front();
+    }
 }
-*/

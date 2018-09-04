@@ -1,65 +1,47 @@
 #pragma once
 
 #include "../command.hpp"
+#include "lexer.hpp"
 #include <queue>
+#include <deque>
+#include <stack>
 
-/*
-addrule(HOSTDEF, VARNAME, optional{SPACE}, ":=", optional{SPACE}, ALNUM, "@", )
-*/
+class ParseTreeNode;
 
 class Parser {
 public:
     /**
-     * Returns `true` if the parser is expecting more input to form a complete
-     * command. Useful for interactive mode.
+     * Returns `true` if the parser was able to parse all input given. This is
+     * useful for implementing interactive mode.
      */
-    bool isParseIncomplete() const;
+    bool isComplete() const;
 
     /**
      * Pops a command off the command queue. Returns `nullptr` if there are no
-     * commands to pop.
+     * commands to pop. Ownership of the pointer is transferred to the caller.
      */
-    std::unique_ptr<Command> popCommand();
+    Command* popCommand();
 
     /**
      * Parses the given script or piece of script. This will be appended to any
-     * incompletely parsed pieces of a script.
+     * incompletely parsed pieces of a script. If the parser expects more
+     * input, it is not considered an error.
      */
     void parse(const std::string& buf);
-};
-
-/*
-class Parser {
-public:
-    CommandList parse(const std::string& buf);
 
 private:
-    void tokenize(const std::string& buf);
+    std::queue<Command*> commands;
 
-    struct Token {
-        std::string str;
+    Lexer lex;
+    std::deque<Token*> tokens;
 
-        // true if str is an operator, e.g. an actual pipe operator as opposed
-        // to just the "|" character to be sent as an argument
-        bool isOp;
+    bool parseIncomplete = false;
 
-        int line;
-        int col;
-    };
+    // commands that are currently being built
+    std::stack<Command*> cmdStack;
 
-    std::queue<Token> tokens;
-    struct {
-        std::string curTok;
-        char curQuote = 0;
-        char prev = 0;
-        
-        Token prevTok;
-        bool isCommented = false;
+    size_t traverseRules(const std::vector<int>& decisions);
+    void buildCommands(ParseTreeNode* node);
 
-        int line = 1;
-        int col = 1;        
-    } tokState;
-
-    void pushToken(const Token& tok);
+    void deleteTokens(size_t numTokens);
 };
-*/

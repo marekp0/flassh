@@ -1,6 +1,8 @@
 #include "lexer.hpp"
-#include "grammar.hpp"
+#include "symbols.hpp"
 #include <stdexcept>
+
+using namespace Symbols;
 
 void Lexer::input(const std::string& str)
 {
@@ -26,6 +28,11 @@ Token* Lexer::popToken()
     auto ret = tokenQueue.front();
     tokenQueue.pop();
     return ret;
+}
+
+bool Lexer::isComplete() const
+{
+    return curTok == nullptr;
 }
 
 void Lexer::pushChar(char c)
@@ -121,18 +128,6 @@ static int oneCharOpToSymbol(char c)
     }
 }
 
-static int twoCharOpToSymbol(const std::string& str)
-{
-    if (str == ":=")
-        return DEF_HOST;
-    else if (str == "||")
-        return LOG_OR;
-    else if (str == "&&")
-        return LOG_AND;
-    else
-        throw std::invalid_argument("bad arg for twoCharOpToSymbol");
-}
-
 /**
  * Handler for the default state, i.e. not commented, quoted, or escaped
  */
@@ -192,7 +187,7 @@ void Lexer::handleOp(char c)
     if (curTok->str == ":") {
         if (c == '=') {
             pushChar(c);
-            pushToken(DEF_HOST);
+            pushToken(COLON_EQ);
             handled = true;
         }
     }

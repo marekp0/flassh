@@ -27,6 +27,11 @@ public:
      */
     Token* popToken();
 
+    /**
+     * Returns true if the lexer is not in the middle of parsing a token.
+     */
+    bool isComplete() const;
+
 private:
     int line = 1;
     int col = 1;
