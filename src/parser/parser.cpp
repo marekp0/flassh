@@ -18,21 +18,35 @@ public:
  */
 FlasshGrammar::FlasshGrammar()
 {
+    // TODO: add some features of EBNF?
     startSymbol = COMMAND;
 
-    addRule({ COMMAND, { ARG_LIST, NEWLINE } });
+    addRule({ COMMAND, { SIMPLE_COMMAND }});
+    addRule({ COMMAND, { DEFINE_HOST }});
+
+    addRule({ SIMPLE_COMMAND, { ARG_LIST, NEWLINE } });
+
+    addRule({ DEFINE_HOST, { VARNAME, OPT_SPACE, COLON_EQ, OPT_SPACE, ARG, OPT_HOST_PORT, NEWLINE }});
+
+    addRule({ OPT_HOST_PORT, {} });
+    addRule({ OPT_HOST_PORT, { HOST_PORT } });
+    addRule({ HOST_PORT, { COLON, ARG } });
 
     addRule({ ARG_LIST, { ARG }});
     addRule({ ARG_LIST, { ARG, SPACE, ARG_LIST } });
 
     addRule({ ARG, { VARNAME } });
     addRule({ ARG, { STR } });
+
+    addRule({ OPT_SPACE, {} });
+    addRule({ OPT_SPACE, { SPACE } });
 }
 
 
 
 /**
- * ???
+ * The state of a deterministic PDA at some point in time. Also includes the
+ * production rule that is to be chosen.
  */
 struct PdaState {
     // index of the production rule chosen at this point
@@ -53,7 +67,7 @@ typedef std::stack<PdaState> DecisionStack;
 
 bool Parser::isComplete() const
 {
-    return lex.isComplete();
+    return lex.isComplete() && tokens.empty();
 }
 
 Command* Parser::popCommand()
@@ -78,6 +92,9 @@ void Parser::parse(const std::string& buf)
     for (Token* tok = lex.popToken(); tok != nullptr; tok = lex.popToken()) {
         tokens.push_back(tok);
     }
+
+    // index of the first token that could not be matched
+    size_t maxUnmatchedToken = 0;
 
     // initial state
     PdaState initialState;
@@ -128,6 +145,11 @@ void Parser::parse(const std::string& buf)
             // it matches, advance nextToken and pop off the PDA stack
             ++state.nextToken;
             symStack.pop();
+
+            // update maxUnmatchedToken
+            if (state.nextToken > maxUnmatchedToken) {
+                maxUnmatchedToken = state.nextToken;
+            }
         }
 
         // if the top of the stack is a terminal symbol, then we made a wrong decision
@@ -151,8 +173,20 @@ void Parser::parse(const std::string& buf)
     }
 
     if (dstk.empty()) {
-        fprintf(stderr, "syntax error\n");
-        deleteTokens(tokens.size());
+        // parsing failed, ran out of possibilities to try
+
+        if (maxUnmatchedToken == tokens.size()) {
+            // unexpected EOF, wait for more input
+        }
+        else if (maxUnmatchedToken < tokens.size()) {
+            fprintf(stderr, "Syntax error: unexpected token %s\n", tokens[maxUnmatchedToken]->str.c_str());
+            deleteTokens(tokens.size());
+        }
+        else {
+            // should never happen
+            throw std::runtime_error("parser error");
+        }
+        
         return;
     }
 
@@ -176,13 +210,40 @@ void Parser::parse(const std::string& buf)
 
 void Parser::buildCommands(ParseTreeNode* n)
 {
-    if (n->getSymbol() == COMMAND) {
+    if (n->getSymbol() == SIMPLE_COMMAND) {
         auto argNodes = n->findSymbol(ARG);
         std::vector<std::string> args;
         for (auto an : argNodes) {
             args.push_back(an->concatTokens());
         }
         commands.push(new SimpleCommand(args));
+    }
+    else if (n->getSymbol() == DEFINE_HOST) {
+        // get username, hostname, and port
+        HostInfo info;
+        auto argNodes = n->findSymbol(ARG);
+        auto userAndHost = argNodes.at(0)->concatTokens();
+        info.port = 22;
+        if (argNodes.size() >= 2) {
+            try {
+                info.port = std::stoi(argNodes[2]->concatTokens());
+            }
+            catch (...) {
+                fprintf(stderr, "Bad port number %u\n", info.port);
+                return;
+            }
+        }
+        
+        auto atIndex = userAndHost.find('@');
+        if (atIndex == std::string::npos) {
+            info.hostName = userAndHost;
+        }
+        else {
+            info.userName = userAndHost.substr(0, atIndex);
+            info.hostName = userAndHost.substr(atIndex + 1);
+        }
+
+        commands.push(new NewHostCommand(info));
     }
 }
 
@@ -191,5 +252,6 @@ void Parser::deleteTokens(size_t numTokens)
     while (tokens.size() > 0 && numTokens > 0) {
         delete tokens.front();
         tokens.pop_front();
+        --numTokens;
     }
 }

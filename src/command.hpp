@@ -1,6 +1,7 @@
 #pragma once
 
 #include "process.hpp"
+#include "host.hpp"
 #include <vector>
 #include <string>
 #include <memory>
@@ -18,8 +19,6 @@ public:
     virtual int run() = 0;
 };
 
-typedef std::vector<std::unique_ptr<Command>> CommandList;
-
 /**
  * A simple command
  */
@@ -31,4 +30,17 @@ public:
 
 private:
     std::vector<std::string> args;
+};
+
+/**
+ * Opens a new connection to a host
+ */
+class NewHostCommand : public Command {
+public:
+    NewHostCommand(const HostInfo& info);
+
+    int run();
+
+private:
+    HostInfo hostInfo;
 };

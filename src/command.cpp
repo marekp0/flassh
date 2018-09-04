@@ -9,3 +9,14 @@ int SimpleCommand::run()
     p.run();
     return p.wait();
 }
+
+
+
+NewHostCommand::NewHostCommand(const HostInfo& info) : hostInfo(info) {}
+
+int NewHostCommand::run()
+{
+    Host h;
+    h.connect(hostInfo);
+    return 0;
+}

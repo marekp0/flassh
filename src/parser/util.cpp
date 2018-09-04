@@ -80,7 +80,7 @@ ParseTreeNode* ParseTreeNode::createParseTree(const ContextFreeGrammar& grammar,
         else {
             if (root != nullptr) {
                 // should never happen
-                throw std::runtime_error("parser error");
+                throw std::runtime_error("parser error, multiple parse tree roots");
             }
             root = newNode;
         }
@@ -101,13 +101,14 @@ ParseTreeNode* ParseTreeNode::createParseTree(const ContextFreeGrammar& grammar,
 
             // push tree node onto the stack so that future nodes will be added
             // as children to this node
-            nodeStack.push(newNode);
+            if (rule.replacement.size() > 0)
+                nodeStack.push(newNode);
         }
     }
 
     // should never happen
     if (!nodeStack.empty())
-        throw std::runtime_error("parser error");
+        throw std::runtime_error("parser error, unknown nodes");
 
     return root;
 }

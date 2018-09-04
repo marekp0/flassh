@@ -27,8 +27,13 @@ enum Terminals {
 enum NonTerminals {
     SCRIPT = NUM_TERMINAL_SYMBOLS,
     COMMAND,
+    SIMPLE_COMMAND,
+    DEFINE_HOST,
+    HOST_PORT,
+    OPT_HOST_PORT,
     ARG,
     ARG_LIST,
+    OPT_SPACE,
 };
 
 inline bool isTerminal(int symbol)
