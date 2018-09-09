@@ -78,12 +78,14 @@ RemoteProcess::RemoteProcess(ssh_session session, const std::vector<std::string>
     }
 
     // setup callback so we can get exit status
-    struct ssh_channel_callbacks_struct cb = {
-        .userdata = this,
-        .channel_exit_status_function = staticOnExitStatus
-    };
-    ssh_callbacks_init(&cb);
-    if (SSH_OK != ssh_set_channel_callbacks(channel, &cb)) {
+    auto cb = new ssh_channel_callbacks_struct;
+    memset(cb, 0, sizeof(*cb));
+    cb->userdata = this;
+    cb->channel_exit_status_function = staticOnExitStatus;
+    cb->channel_data_function = staticOnData;
+    ssh_callbacks_init(cb);
+
+    if (SSH_OK != ssh_set_channel_callbacks(channel, cb)) {
         ssh_channel_close(channel);
         ssh_channel_free(channel);
         channel = nullptr;
@@ -122,6 +124,12 @@ void RemoteProcess::staticOnExitStatus(ssh_session session, ssh_channel channel,
     ((RemoteProcess*)userdata)->onExitStatus(session, channel, status);
 }
 
+int RemoteProcess::staticOnData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr, void* userdata)
+{
+    // forward to member function
+    return ((RemoteProcess*)userdata)->onData(session, channel, data, len, is_stderr, userdata);
+}
+
 void RemoteProcess::onExitStatus(ssh_session session, ssh_channel channel, int status)
 {
     if (channel != this->channel) {
@@ -135,4 +143,18 @@ void RemoteProcess::onExitStatus(ssh_session session, ssh_channel channel, int s
     exitStatusValid = true;
     exitStatus = status;
     exitStatusCond.notify_all();
+}
+
+int RemoteProcess::onData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr, void* userdata)
+{
+    if (channel != this->channel) {
+        // something has gone horribly wrong
+        fprintf(stderr, "bad channel in exit status callback");
+        exit(1);
+    }
+
+    // TODO: pipe
+    write(STDOUT_FILENO, data, len);
+    
+    return len;
 }

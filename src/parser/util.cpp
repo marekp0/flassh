@@ -9,12 +9,13 @@ void ContextFreeGrammar::addRule(const ProductionRule& rule)
 
 
 
-void ParseTreeNode::traverse(const std::function<void(ParseTreeNode*)>& callback)
+void ParseTreeNode::traverse(const TraverseCallback& onEnter, const TraverseCallback& onLeave)
 {
-    callback(this);
+    if (onEnter) onEnter(this);
     for (auto c : children) {
-        c->traverse(callback);
+        c->traverse(onEnter, onLeave);
     }
+    if (onLeave) onLeave(this);
 }
 
 std::vector<ParseTreeNode*> ParseTreeNode::findSymbol(int symbol)
@@ -111,4 +112,20 @@ ParseTreeNode* ParseTreeNode::createParseTree(const ContextFreeGrammar& grammar,
         throw std::runtime_error("parser error, unknown nodes");
 
     return root;
+}
+
+int ParseTreeNode::getLine() const
+{
+    if (token == nullptr) {
+        if (!children.empty()) {
+            return children[0]->getLine();
+        }
+        else {
+            // should never happen
+            return -1;
+        }
+    }
+    else {
+        return token->line;
+    }
 }

@@ -1,22 +1,27 @@
 #include "command.hpp"
 #include "process.hpp"
+#include "context.hpp"
 
-SimpleCommand::SimpleCommand(const std::vector<std::string>& args) : args(args) {}
+SimpleCommand::SimpleCommand(const std::string& hostAlias, const std::vector<std::string>& args) 
+    : hostAlias(hostAlias), args(args) {}
 
-int SimpleCommand::run()
+int SimpleCommand::run(Context* c)
 {
-    LocalProcess p(args);
-    p.run();
-    return p.wait();
+    auto p = c->createPocess(hostAlias, args);
+    p->run();    // TODO: handle error from here
+    int exitCode = p->wait();
+    delete p;   // TODO: not deleted if exception
+
+    return exitCode;
 }
 
 
 
-NewHostCommand::NewHostCommand(const HostInfo& info) : hostInfo(info) {}
+NewHostCommand::NewHostCommand(const std::string& alias, const HostInfo& info) : 
+    alias(alias), hostInfo(info) {}
 
-int NewHostCommand::run()
+int NewHostCommand::run(Context* c)
 {
-    Host h;
-    h.connect(hostInfo);
+    c->addHost(alias, hostInfo);
     return 0;
 }

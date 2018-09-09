@@ -4,6 +4,7 @@
 #include <stack>
 
 using namespace Symbols;
+using namespace std::placeholders;
 
 /**
  * Helps us initialize the grammar when the process starts
@@ -19,10 +20,18 @@ public:
 FlasshGrammar::FlasshGrammar()
 {
     // TODO: add some features of EBNF?
-    startSymbol = COMMAND;
+    startSymbol = FULL_COMMAND;
+
+    addRule({ FULL_COMMAND, { OPT_SET_HOST, COMMAND } });
+    addRule({ FULL_COMMAND, { DEFINE_HOST } });
+
+    addRule({ SET_HOST, { VARNAME, COLON, OPT_SPACE } });
+
+    addRule({ OPT_SET_HOST, {} });
+    addRule({ OPT_SET_HOST, { SET_HOST }});
 
     addRule({ COMMAND, { SIMPLE_COMMAND }});
-    addRule({ COMMAND, { DEFINE_HOST }});
+    // TODO: COMMAND => PIPE_COMMAND, etc
 
     addRule({ SIMPLE_COMMAND, { ARG_LIST, NEWLINE } });
 
@@ -200,50 +209,52 @@ void Parser::parse(const std::string& buf)
     auto parseTree = ParseTreeNode::createParseTree(flasshGrammar, decisionList, tokens);
 
     // build commands
-    parseTree->traverse([this](ParseTreeNode* node) {
-        buildCommands(node);
-    });
+    parseTree->traverse(std::bind(&Parser::enter, this, _1), std::bind(&Parser::leave, this, _1));
 
     // FIXME
     deleteTokens(tokens.size());
 }
 
-void Parser::buildCommands(ParseTreeNode* n)
+void Parser::enter(ParseTreeNode* n)
 {
-    if (n->getSymbol() == SIMPLE_COMMAND) {
+    if (n->getSymbol() == FULL_COMMAND) {
+        // get host alias, push it onto hostAliasStack
+        std::string alias;
+        auto setHost = n->findSymbol(SET_HOST);
+        if (!setHost.empty()) {
+            alias = setHost[0]->findSymbol(VARNAME).at(0)->concatTokens();
+        }
+        hostAliasStack.push(alias);
+    }
+    else if (n->getSymbol() == SIMPLE_COMMAND) {
         auto argNodes = n->findSymbol(ARG);
         std::vector<std::string> args;
         for (auto an : argNodes) {
             args.push_back(an->concatTokens());
         }
-        commands.push(new SimpleCommand(args));
+        commands.push(new SimpleCommand(hostAliasStack.top(), args));
     }
     else if (n->getSymbol() == DEFINE_HOST) {
+        // get host alias
+        std::string alias = n->getChildren()[0]->concatTokens();
+
         // get username, hostname, and port
         HostInfo info;
-        auto argNodes = n->findSymbol(ARG);
-        auto userAndHost = argNodes.at(0)->concatTokens();
-        info.port = 22;
-        if (argNodes.size() >= 2) {
-            try {
-                info.port = std::stoi(argNodes[2]->concatTokens());
-            }
-            catch (...) {
-                fprintf(stderr, "Bad port number %u\n", info.port);
-                return;
-            }
-        }
+        std::string hostStr = n->findSymbol(ARG).at(0)->concatTokens();
+        hostStr += n->findSymbol(OPT_HOST_PORT).at(0)->concatTokens();
         
-        auto atIndex = userAndHost.find('@');
-        if (atIndex == std::string::npos) {
-            info.hostName = userAndHost;
-        }
-        else {
-            info.userName = userAndHost.substr(0, atIndex);
-            info.hostName = userAndHost.substr(atIndex + 1);
+        if (!info.parse(hostStr)) {
+            throw std::runtime_error("bad host definition");
         }
 
-        commands.push(new NewHostCommand(info));
+        commands.push(new NewHostCommand(alias, info));
+    }
+}
+
+void Parser::leave(ParseTreeNode* n)
+{
+    if (n->getSymbol() == FULL_COMMAND) {
+        hostAliasStack.pop();
     }
 }
 

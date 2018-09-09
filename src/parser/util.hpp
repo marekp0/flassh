@@ -39,11 +39,13 @@ class ParseTreeNode {
 public:
     ~ParseTreeNode();
 
+    typedef std::function<void(ParseTreeNode*)> TraverseCallback;
+
     /**
      * Calls the callback with the current node first, then each of the
      * children in order.
      */
-    void traverse(const std::function<void(ParseTreeNode*)>& callback);
+    void traverse(const TraverseCallback& onEnter, const TraverseCallback& onLeave = nullptr);
 
     /**
      * Returns all child nodes with the given symbol in traversal order.
@@ -63,7 +65,12 @@ public:
                                           const std::vector<int>& decisions,
                                           const std::deque<Token*>& tokens);
 
+    const std::vector<ParseTreeNode*>& getChildren() { return children; }
     int getSymbol() const { return symbol; }
+    const Token * getToken() const { return token; }
+    const ProductionRule * getProductionRule() const { return rule; }
+
+    int getLine() const;
 
 private:
     std::vector<ParseTreeNode*> children;

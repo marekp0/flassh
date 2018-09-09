@@ -2,8 +2,60 @@
 #include <cstring>
 #include <stdexcept>
 #include <unistd.h>
+#include <regex>
 
 static int authenticate_kbdint(ssh_session session);
+
+
+
+bool HostInfo::parse(const std::string& str)
+{
+    static std::regex reHostInfo(R"(^(?:(.+?)@)?(.+?)(?::(\d+))?$)");
+    try {
+        std::smatch m;
+        if (!std::regex_match(str, m, reHostInfo)) {
+            return false;
+        }
+
+        // username optional
+        if (m[1].matched)
+            userName = m[1].str();
+
+        // host name required
+        hostName = m[2].str();
+
+        // port number optional, default 22
+        if (m[3].matched) {
+            port = std::stoul(m[3].str());
+        }
+        else {
+            port = 22;
+        }
+
+        return true;
+    }
+    catch (...) {
+        return false;
+    }
+}
+
+std::string HostInfo::toString()
+{
+    std::string str;
+    if (!userName.empty())
+        str += userName + "@";
+
+    str += hostName;
+
+    if (port != 22) {
+        str += ":";
+        str += std::to_string(port);
+    }
+
+    return str;
+}
+
+
 
 Host::Host()
 {
@@ -34,7 +86,7 @@ void Host::connect(const HostInfo& info)
         sshException("Failed to connect to " + info.hostName);
     }
 
-    authHost();
+    //authHost();
     authUser();
 }
 
@@ -133,7 +185,7 @@ void Host::authUser()
     // else we need to try another authentication method
 
     // password authentication
-    std::string prompt = "Enter password for " + info.userName + "@" + info.hostName + ": ";
+    std::string prompt = "Enter password for " + info.toString();
     char* password = getpass(prompt.c_str());
     rc = ssh_userauth_password(session, nullptr, password);
     

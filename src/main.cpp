@@ -1,11 +1,13 @@
 #include "parser/parser.hpp"
 #include "parser/lexer.hpp"
+#include "context.hpp"
 #include <cstdio>
 #include <iostream>
 #include <string>
 
 int main(int argc, char** argv)
 {
+    Context ctx;
     if (argc == 1) {
         // interactive mode
         Parser p;
@@ -15,7 +17,7 @@ int main(int argc, char** argv)
             p.parse(line + "\n");
             Command* c = nullptr;
             while ((c = p.popCommand()) != nullptr) {
-                c->run();
+                c->run(&ctx);
                 delete c;
             }
             printf(p.isComplete() ? "> " : ">> ");

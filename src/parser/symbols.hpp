@@ -26,6 +26,9 @@ enum Terminals {
 
 enum NonTerminals {
     SCRIPT = NUM_TERMINAL_SYMBOLS,
+    FULL_COMMAND,
+    SET_HOST,
+    OPT_SET_HOST,
     COMMAND,
     SIMPLE_COMMAND,
     DEFINE_HOST,

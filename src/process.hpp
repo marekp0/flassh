@@ -48,5 +48,8 @@ private:
     std::condition_variable exitStatusCond;
 
     static void staticOnExitStatus(ssh_session session, ssh_channel channel, int status, void* userdata);
+    static int staticOnData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr, void* userdata);
+
     void onExitStatus(ssh_session session, ssh_channel channel, int status);
+    int onData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr, void* userdata);
 };

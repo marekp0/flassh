@@ -6,17 +6,26 @@
 #include <string>
 #include <memory>
 
+class Context;
+
 /**
  * Represents a parsed command
  */
 class Command {
 public:
     /**
+     * Constructs a command
+     * 
+     * @param line  A line number associated with the command
+     */
+    //Command(int line);
+
+    /**
      * Runs the command and waits for it to complete.
      * 
      * @return The return code of the command.
      */
-    virtual int run() = 0;
+    virtual int run(Context* c) = 0;
 };
 
 /**
@@ -24,11 +33,12 @@ public:
  */
 class SimpleCommand : public Command {
 public:
-    SimpleCommand(const std::vector<std::string>& args);
+    SimpleCommand(const std::string& hostAlias, const std::vector<std::string>& args);
 
-    int run();
+    int run(Context* c);
 
 private:
+    std::string hostAlias;
     std::vector<std::string> args;
 };
 
@@ -37,10 +47,11 @@ private:
  */
 class NewHostCommand : public Command {
 public:
-    NewHostCommand(const HostInfo& info);
+    NewHostCommand(const std::string& alias, const HostInfo& info);
 
-    int run();
+    int run(Context* c);
 
 private:
+    std::string alias;
     HostInfo hostInfo;
 };

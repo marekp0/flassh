@@ -39,9 +39,10 @@ private:
 
     // commands that are currently being built
     std::stack<Command*> cmdStack;
+    std::stack<std::string> hostAliasStack;
 
-    size_t traverseRules(const std::vector<int>& decisions);
-    void buildCommands(ParseTreeNode* node);
+    void enter(ParseTreeNode* node);
+    void leave(ParseTreeNode* node);
 
     void deleteTokens(size_t numTokens);
 };
