@@ -81,7 +81,6 @@ RemoteProcess::RemoteProcess(ssh_session session, const std::vector<std::string>
     auto cb = new ssh_channel_callbacks_struct;
     memset(cb, 0, sizeof(*cb));
     cb->userdata = this;
-    cb->channel_exit_status_function = staticOnExitStatus;
     cb->channel_data_function = staticOnData;
     ssh_callbacks_init(cb);
 
@@ -105,10 +104,8 @@ void RemoteProcess::run()
 
 int RemoteProcess::wait()
 {
-    std::unique_lock<std::mutex> lock(exitStatusMutex);
-    while (!exitStatusValid) {
-        exitStatusCond.wait(lock);
-    }
+    // TODO: may block forever with a badly behaving server
+    int exitStatus = ssh_channel_get_exit_status(channel);
 
     // cleanup channel
     ssh_channel_close(channel);
@@ -118,31 +115,10 @@ int RemoteProcess::wait()
     return exitStatus;
 }
 
-void RemoteProcess::staticOnExitStatus(ssh_session session, ssh_channel channel, int status, void* userdata)
-{
-    // forward to member function
-    ((RemoteProcess*)userdata)->onExitStatus(session, channel, status);
-}
-
 int RemoteProcess::staticOnData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr, void* userdata)
 {
     // forward to member function
     return ((RemoteProcess*)userdata)->onData(session, channel, data, len, is_stderr, userdata);
-}
-
-void RemoteProcess::onExitStatus(ssh_session session, ssh_channel channel, int status)
-{
-    if (channel != this->channel) {
-        // something has gone horribly wrong
-        fprintf(stderr, "bad channel in exit status callback");
-        exit(1);
-    }
-
-    // set the exit status and notify anyone waiting on the condition variable
-    std::unique_lock<std::mutex> lock(exitStatusMutex);
-    exitStatusValid = true;
-    exitStatus = status;
-    exitStatusCond.notify_all();
 }
 
 int RemoteProcess::onData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr, void* userdata)
