@@ -190,6 +190,11 @@ void Lexer::handleOp(char c)
             pushToken(COLON_EQ);
             handled = true;
         }
+        else if (c == ':') {
+            pushChar(c);
+            pushToken(COLON2);
+            handled = true;
+        }
     }
     else if (curTok->str == "|") {
         if (c == '|') {

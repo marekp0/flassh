@@ -4,6 +4,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <cstring>
+#include <thread>
 
 LocalProcess::LocalProcess(const std::vector<std::string>& args) : args(args)
 {
@@ -16,9 +17,9 @@ LocalProcess::LocalProcess(const std::vector<std::string>& args) : args(args)
     argv.push_back(nullptr);
 }
 
-void LocalProcess::run()
+void LocalProcess::start(ProcessFinishedCallback onFinish)
 {
-    // TODO: strerror
+    // TODO: more robust error handling
     pid = fork();
     if (pid == 0) {
         // child
@@ -27,32 +28,30 @@ void LocalProcess::run()
 
         // if we got here, then exec failed
         fprintf(stderr, "exec failed: %s\n", strerror(errno));
-        exit(1);
+        exit(1);    // TODO: is there a special error code for this?
     }
     else if (pid > 0) {
-        // TODO: pipe
+        // parent
+
+        // wait for process to finish in another thread
+        std::thread t([this, onFinish] () {
+            int status = -1;
+            int rc = waitpid(pid, &status, 0);
+            if (rc == -1) {
+                fprintf(stderr, "waitpid failed\n");
+            }
+            pid = 0;
+
+            if (onFinish)
+                onFinish(status);
+        });
+
+        // run thread in background
+        t.detach();
     }
     else {
         throw std::runtime_error("fork failed");
     }
-}
-
-int LocalProcess::wait()
-{
-    if (pid == 0) {
-        throw std::runtime_error("Attempted to wait on pid 0");
-    }
-
-    int status;
-    int rc = waitpid(pid, &status, 0);
-
-    if (rc == -1) {
-        // TODO: should this throw an exception?
-        fprintf(stderr, "waitpid failed\n");
-        return -1;
-    }
-
-    return status;
 }
 
 
@@ -82,6 +81,8 @@ RemoteProcess::RemoteProcess(ssh_session session, const std::vector<std::string>
     memset(cb, 0, sizeof(*cb));
     cb->userdata = this;
     cb->channel_data_function = staticOnData;
+    cb->channel_exit_status_function = staticOnExitStatus;
+    // TODO: signals
     ssh_callbacks_init(cb);
 
     if (SSH_OK != ssh_set_channel_callbacks(channel, cb)) {
@@ -92,8 +93,10 @@ RemoteProcess::RemoteProcess(ssh_session session, const std::vector<std::string>
     }
 }
 
-void RemoteProcess::run()
+void RemoteProcess::start(ProcessFinishedCallback onFinish)
 {
+    this->onFinish = onFinish;
+
     int rc = ssh_channel_request_exec(channel, cmd.c_str());
     if (rc != SSH_OK) {
         ssh_channel_close(channel);
@@ -102,26 +105,19 @@ void RemoteProcess::run()
     }
 }
 
-int RemoteProcess::wait()
-{
-    // TODO: may block forever with a badly behaving server
-    int exitStatus = ssh_channel_get_exit_status(channel);
-
-    // cleanup channel
-    ssh_channel_close(channel);
-    ssh_channel_free(channel);
-    channel = nullptr;
-
-    return exitStatus;
-}
-
 int RemoteProcess::staticOnData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr, void* userdata)
 {
     // forward to member function
-    return ((RemoteProcess*)userdata)->onData(session, channel, data, len, is_stderr, userdata);
+    return ((RemoteProcess*)userdata)->onData(session, channel, data, len, is_stderr);
 }
 
-int RemoteProcess::onData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr, void* userdata)
+void RemoteProcess::staticOnExitStatus(ssh_session session, ssh_channel channel, int status, void* userdata)
+{
+    // forward to member function
+    ((RemoteProcess*)userdata)->onExitStatus(session, channel, status);
+}
+
+int RemoteProcess::onData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr)
 {
     if (channel != this->channel) {
         // something has gone horribly wrong
@@ -133,4 +129,21 @@ int RemoteProcess::onData(ssh_session session, ssh_channel channel, void* data, 
     write(STDOUT_FILENO, data, len);
     
     return len;
+}
+
+void RemoteProcess::onExitStatus(ssh_session, ssh_channel channel, int status)
+{
+    if (channel != this->channel) {
+        // something has gone horribly wrong
+        fprintf(stderr, "bad channel in exit status callback");
+        exit(1);
+    }
+
+    // cleanup channel
+    ssh_channel_close(channel);
+    ssh_channel_free(channel);
+    channel = nullptr;
+
+    if (onFinish)
+        onFinish(status);
 }

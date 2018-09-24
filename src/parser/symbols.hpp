@@ -17,6 +17,7 @@ enum Terminals {
     PIPE,       // |
     AMPERSAND,  // &
     
+    COLON2,     // ::
     COLON_EQ,   // :=
     LOG_OR,     // &&
     LOG_AND,    // ||
@@ -31,6 +32,7 @@ enum NonTerminals {
     OPT_SET_HOST,
     COMMAND,
     SIMPLE_COMMAND,
+    PIPE_COMMAND,
     DEFINE_HOST,
     HOST_PORT,
     OPT_HOST_PORT,

@@ -5,11 +5,12 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <functional>
 
 class Context;
 
 /**
- * Represents a parsed command
+ * Represents a linked-list of command trees
  */
 class Command {
 public:
@@ -21,11 +22,31 @@ public:
     //Command(int line);
 
     /**
-     * Runs the command and waits for it to complete.
+     * Starts running the command. Making calls to the event loop may be
+     * requied for the command to properly finish.
      * 
-     * @return The return code of the command.
+     * @param onFinish  Called when the command finishes running. The function
+     *                  signature is `void onFinish(int exitCode)`. This may be
+     *                  called on any thread.
      */
-    virtual int run(Context* c) = 0;
+    virtual void start(Context* c, ProcessFinishedCallback onFinish) = 0;
+};
+
+/**
+ * A command that does nothing
+ */
+class NopCommand : public Command {
+public:
+    /**
+     * @param onFinish  An additional callback to be called when the command is
+     *                  finished.
+     */
+    NopCommand(ProcessFinishedCallback onFinish);
+
+    void start(Context* c, ProcessFinishedCallback onFinish);
+
+private:
+    ProcessFinishedCallback additionalOnFinish;
 };
 
 /**
@@ -36,6 +57,7 @@ public:
     SimpleCommand(const std::string& hostAlias, const std::vector<std::string>& args);
 
     int run(Context* c);
+    void start(Context* c, ProcessFinishedCallback onFinish);
 
 private:
     std::string hostAlias;
@@ -50,6 +72,7 @@ public:
     NewHostCommand(const std::string& alias, const HostInfo& info);
 
     int run(Context* c);
+    void start(Context* c, ProcessFinishedCallback onFinish);
 
 private:
     std::string alias;

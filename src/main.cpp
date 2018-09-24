@@ -10,9 +10,9 @@ void runScript(const std::vector<std::string>& args);
 
 int main(int argc, char** argv)
 {
-    Context ctx;
     if (argc == 1) {
         // interactive mode
+        Context ctx;
         Parser p;
         std::string line;
         printf("> ");
@@ -20,8 +20,8 @@ int main(int argc, char** argv)
             p.parse(line + "\n");
             Command* c = nullptr;
             while ((c = p.popCommand()) != nullptr) {
-                c->run(&ctx);
-                delete c;
+                ctx.enqueueCommand(c);
+                ctx.flushCmdQueue();
             }
             printf(p.isComplete() ? "> " : ">> ");
         }
@@ -62,7 +62,7 @@ void runScript(const std::vector<std::string>& args)
     }
     Command* c = nullptr;
     while ((c = p.popCommand()) != nullptr) {
-        c->run(&ctx);
-        delete c;
+        ctx.enqueueCommand(c);
     }
+    ctx.flushCmdQueue();
 }

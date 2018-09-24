@@ -35,6 +35,7 @@ FlasshGrammar::FlasshGrammar()
     addRule({ OPT_SET_HOST, { SET_HOST }});
 
     addRule({ COMMAND, { SIMPLE_COMMAND }});
+    addRule({ PIPE_COMMAND, { COMMAND, OPT_SPACE, PIPE, OPT_SPACE, COMMAND } });
     // TODO: COMMAND => PIPE_COMMAND, etc
 
     addRule({ SIMPLE_COMMAND, { ARG_LIST } });
@@ -242,6 +243,9 @@ void Parser::enter(ParseTreeNode* n)
             args.push_back(an->concatTokens());
         }
         commands.push(new SimpleCommand(hostAliasStack.top(), args));
+    }
+    else if (n->getSymbol() == PIPE_COMMAND) {
+        
     }
     else if (n->getSymbol() == DEFINE_HOST) {
         // get host alias
