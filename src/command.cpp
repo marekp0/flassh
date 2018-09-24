@@ -21,7 +21,10 @@ SimpleCommand::SimpleCommand(const std::string& hostAlias, const std::vector<std
 void SimpleCommand::start(Context* c, ProcessFinishedCallback onFinish)
 {
     auto p = c->createPocess(hostAlias, args);
-    p->start(onFinish);
+    p->start([p, onFinish] (int status) {
+        delete p;
+        onFinish(status);
+    });
 }
 
 

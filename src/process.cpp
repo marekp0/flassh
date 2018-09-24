@@ -131,7 +131,7 @@ int RemoteProcess::onData(ssh_session session, ssh_channel channel, void* data, 
     return len;
 }
 
-void RemoteProcess::onExitStatus(ssh_session, ssh_channel channel, int status)
+void RemoteProcess::onExitStatus(ssh_session session, ssh_channel channel, int status)
 {
     if (channel != this->channel) {
         // something has gone horribly wrong
@@ -140,9 +140,11 @@ void RemoteProcess::onExitStatus(ssh_session, ssh_channel channel, int status)
     }
 
     // cleanup channel
+    ssh_set_blocking(session, 0);
     ssh_channel_close(channel);
     ssh_channel_free(channel);
     channel = nullptr;
+    ssh_set_blocking(session, 1);
 
     if (onFinish)
         onFinish(status);

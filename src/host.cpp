@@ -86,7 +86,7 @@ void Host::connect(const HostInfo& info)
         sshException("Failed to connect to " + info.hostName);
     }
 
-    //authHost();
+    //authHost();   // TODO
     authUser();
 }
 
