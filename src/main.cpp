@@ -3,7 +3,10 @@
 #include "context.hpp"
 #include <cstdio>
 #include <iostream>
+#include <fstream>
 #include <string>
+
+void runScript(const std::vector<std::string>& args);
 
 int main(int argc, char** argv)
 {
@@ -24,8 +27,41 @@ int main(int argc, char** argv)
         }
     }
     else {
-        fprintf(stderr, "Running scripts not implemented");
+        std::vector<std::string> args;
+        for (int i = 1; i < argc; i++) {
+            args.push_back(argv[i]);
+        }
+        runScript(args);
     }
     return 0;
 }
 
+void runScript(const std::vector<std::string>& args)
+{
+    std::ifstream inFile(args[0], std::ios::binary);
+    if (!inFile) {
+        fprintf(stderr, "flassh: failed to open %s\n", args[0].c_str());
+        return;
+    }
+
+    // read file into buffer
+    inFile.seekg(0, inFile.end);
+    auto len = inFile.tellg();
+    inFile.seekg(0, inFile.beg);
+
+    std::string buf(len, 0);
+    inFile.read(buf.data(), len);
+
+    Context ctx;
+    Parser p;
+    p.parse(buf);
+    if (!p.isComplete()) {
+        fprintf(stderr, "flassh: Unexpected EOF\n");
+        return;
+    }
+    Command* c = nullptr;
+    while ((c = p.popCommand()) != nullptr) {
+        c->run(&ctx);
+        delete c;
+    }
+}

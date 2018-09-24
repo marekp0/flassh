@@ -20,7 +20,10 @@ public:
 FlasshGrammar::FlasshGrammar()
 {
     // TODO: add some features of EBNF?
-    startSymbol = FULL_COMMAND;
+    startSymbol = SCRIPT;
+
+    addRule({ SCRIPT, { FULL_COMMAND, SCRIPT } });
+    addRule({ SCRIPT, {} });
 
     addRule({ FULL_COMMAND, { OPT_SET_HOST, COMMAND } });
     addRule({ FULL_COMMAND, { DEFINE_HOST } });
@@ -161,8 +164,11 @@ void Parser::parse(const std::string& buf)
             }
         }
 
-        // if the top of the stack is a terminal symbol, then we made a wrong decision
-        if (!symStack.empty() && isTerminal(symStack.top())) {
+        // we made a wrong decision if the top of the stack is a terminal symbol, or
+        // if the stack is empty but we haven't read all input yet
+        if ((!symStack.empty() && isTerminal(symStack.top()) ||
+            (symStack.empty() && state.nextToken < tokens.size())))
+        {
             // try the next rule next time
             ++dstk.top().ruleChosen;
             continue;
@@ -170,13 +176,15 @@ void Parser::parse(const std::string& buf)
 
         // check if there's a new non-terminal symbol
         if (!symStack.empty() && !isTerminal(symStack.top())) {
-            // try rules from the beginning next time
+            // try the new non-terminal symbol's rules from the beginning in the
+            // next iteration
             state.ruleChosen = 0;
             dstk.push(state);
         }
         
         if (symStack.empty()) {
             // we're done!
+            printf("exit on symStack.empty()\n");
             break;
         }
     }
@@ -188,6 +196,7 @@ void Parser::parse(const std::string& buf)
             // unexpected EOF, wait for more input
         }
         else if (maxUnmatchedToken < tokens.size()) {
+            // TODO: line number?
             fprintf(stderr, "Syntax error: unexpected token %s\n", tokens[maxUnmatchedToken]->str.c_str());
             deleteTokens(tokens.size());
         }
