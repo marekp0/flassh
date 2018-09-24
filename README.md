@@ -2,20 +2,41 @@
 flassh allows the creation of shell scripts that run commands on multiple
 machines via ssh.
 
+## Example
+Eventually, flassh should be able to do something like this:
+```
+srv1 := user@example.com
+srv2 := user@example2.com
+
+srv: ps aux | grep httpd > srv2::~/srv1_httpd_list.txt
+srv1::./script1.sh | srv2::./script2.sh > local_file.txt
+```
+
+For now, it is capable only of performing simple commands on local or remote
+hosts with no I/O redirection:
+```
+srv := user@example.com
+
+ps aux              # list all local processes
+srv: ls -lah        # list all remote processes
+```
+
+For more examples, see the [syntax overview](doc/syntax-overview.md) page.
+
 
 ## Features
-None
+ * Run commands on multiple ssh hosts from a single script
 
 ### Planned Features
- * Run commands on multiple ssh hosts from a single script
  * I/O between commands running on different hosts
- * Interactive Mode
+ * Built-in scp-like functionality
+ * Full compatibility with bash
 
 ### Supported Systems
  * Linux
 
 ### Dependencies
- * libssh
+ * [libssh](https://www.libssh.org/)
 
 
 ## Building
@@ -29,3 +50,5 @@ make
 make install
 ```
 
+## License
+flassh is [MIT licensed](LICENSE.txt).

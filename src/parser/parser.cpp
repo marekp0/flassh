@@ -22,11 +22,12 @@ FlasshGrammar::FlasshGrammar()
     // TODO: add some features of EBNF?
     startSymbol = SCRIPT;
 
-    addRule({ SCRIPT, { FULL_COMMAND, SCRIPT } });
+    addRule({ SCRIPT, { FULL_COMMAND, NEWLINE, SCRIPT } });
     addRule({ SCRIPT, {} });
 
     addRule({ FULL_COMMAND, { OPT_SET_HOST, COMMAND } });
     addRule({ FULL_COMMAND, { DEFINE_HOST } });
+    addRule({ FULL_COMMAND, {} });
 
     addRule({ SET_HOST, { VARNAME, COLON, OPT_SPACE } });
 
@@ -36,9 +37,9 @@ FlasshGrammar::FlasshGrammar()
     addRule({ COMMAND, { SIMPLE_COMMAND }});
     // TODO: COMMAND => PIPE_COMMAND, etc
 
-    addRule({ SIMPLE_COMMAND, { ARG_LIST, NEWLINE } });
+    addRule({ SIMPLE_COMMAND, { ARG_LIST } });
 
-    addRule({ DEFINE_HOST, { VARNAME, OPT_SPACE, COLON_EQ, OPT_SPACE, ARG, OPT_HOST_PORT, NEWLINE }});
+    addRule({ DEFINE_HOST, { VARNAME, OPT_SPACE, COLON_EQ, OPT_SPACE, ARG, OPT_HOST_PORT }});
 
     addRule({ OPT_HOST_PORT, {} });
     addRule({ OPT_HOST_PORT, { HOST_PORT } });
@@ -184,7 +185,6 @@ void Parser::parse(const std::string& buf)
         
         if (symStack.empty()) {
             // we're done!
-            printf("exit on symStack.empty()\n");
             break;
         }
     }

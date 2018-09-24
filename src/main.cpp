@@ -46,11 +46,12 @@ void runScript(const std::vector<std::string>& args)
 
     // read file into buffer
     inFile.seekg(0, inFile.end);
-    auto len = inFile.tellg();
+    int len = inFile.tellg();
     inFile.seekg(0, inFile.beg);
 
-    std::string buf(len, 0);
+    std::string buf(len + 1, 0);
     inFile.read(buf.data(), len);
+    buf[len] = '\n';
 
     Context ctx;
     Parser p;
