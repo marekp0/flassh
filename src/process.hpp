@@ -65,6 +65,11 @@ private:
     ProcessFinishedCallback onFinish;
     std::vector<ssh_connector> connectors;
 
+    // workaround for libssh connectors bug
+    // connectors sometimes cut off data at the end
+    int stdoutLocalFd;
+    int stderrLocalFd;
+
     static int staticOnData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr, void* userdata);
     static void staticOnExitStatus(ssh_session session, ssh_channel channel, int status, void* userdata);
 

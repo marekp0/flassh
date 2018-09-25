@@ -97,7 +97,7 @@ RemoteProcess::RemoteProcess(ssh_session session, Context* ctx, const std::vecto
     auto cb = new ssh_channel_callbacks_struct;
     memset(cb, 0, sizeof(*cb));
     cb->userdata = this;
-    //cb->channel_data_function = staticOnData;
+    cb->channel_data_function = staticOnData;   // TODO: remove once libssh connectors work better
     cb->channel_exit_status_function = staticOnExitStatus;
     // TODO: signals
     ssh_callbacks_init(cb);
@@ -148,18 +148,29 @@ void RemoteProcess::start(ProcessFinishedCallback onFinish)
     // TODO: these seem unreliable?
     for (auto& r : ioRedirs) {
         // TODO: handle errors!!!
-        ssh_connector conn = ssh_connector_new(session);
+        //ssh_connector conn = ssh_connector_new(session);
         if (r.newfd == STDIN_FILENO) {
+            ssh_connector conn = ssh_connector_new(session);
             ssh_connector_set_in_fd(conn, r.oldfd);
             ssh_connector_set_out_channel(conn, channel, SSH_CONNECTOR_STDOUT);
+            connectors.push_back(conn);
+            ctx->getEvtLoop()->addConnector(conn);
         }
         else {
-            auto flags = r.newfd == STDOUT_FILENO ? SSH_CONNECTOR_STDOUT : SSH_CONNECTOR_STDERR;
-            ssh_connector_set_in_channel(conn, channel, flags);
-            ssh_connector_set_out_fd(conn, r.oldfd);
+            // FIXME: libssh connectors with output file descriptors seem to
+            // sometimes drop the end of the output. For now, do things manually
+            if (r.newfd == STDOUT_FILENO) {
+                stdoutLocalFd = r.oldfd;
+            }
+            else if (r.newfd == STDERR_FILENO) {
+                stderrLocalFd = r.oldfd;
+            }
+            //auto flags = r.newfd == STDOUT_FILENO ? SSH_CONNECTOR_STDOUT : SSH_CONNECTOR_STDERR;
+            //ssh_connector_set_in_channel(conn, channel, flags);
+            //ssh_connector_set_out_fd(conn, r.oldfd);
         }
-        connectors.push_back(conn);
-        ctx->getEvtLoop()->addConnector(conn);
+        //connectors.push_back(conn);
+        //ctx->getEvtLoop()->addConnector(conn);
     }
 }
 
@@ -183,8 +194,13 @@ int RemoteProcess::onData(ssh_session session, ssh_channel channel, void* data, 
         exit(1);
     }
 
-    // TODO: pipe
-    write(STDOUT_FILENO, data, len);
+    // forward output
+    if (is_stderr) {
+        write(stderrLocalFd, data, len);
+    }
+    else {
+        write(stdoutLocalFd, data, len);
+    }
     
     return len;
 }
