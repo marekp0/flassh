@@ -1,10 +1,11 @@
 #include "eventLoop.hpp"
 #include <poll.h>
+#include <fcntl.h>
 #include <stdexcept>
 
 EventLoop::EventLoop()
 {
-    if (pipe(pipefd) != 0) {
+    if (pipe2(pipefd, O_CLOEXEC) != 0) {
         throw std::runtime_error("pipe() failed");
     }
 
@@ -44,6 +45,20 @@ void EventLoop::removeSession(ssh_session session)
 {
     enqueueTask([this, session] () {
         ssh_event_remove_session(evt, session);
+    });
+}
+
+void EventLoop::addConnector(ssh_connector conn)
+{
+    enqueueTask([this, conn] () {
+        ssh_event_add_connector(evt, conn);
+    });
+}
+
+void EventLoop::removeConnector(ssh_connector conn)
+{
+    enqueueTask([this, conn] () {
+        ssh_event_remove_connector(evt, conn);
     });
 }
 

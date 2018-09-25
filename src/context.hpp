@@ -36,6 +36,8 @@ public:
     Host* getHost(const std::string& alias);
 
     Process* createPocess(const std::string& hostAlias, const std::vector<std::string>& args);
+
+    EventLoop* getEvtLoop() { return &evtLoop; }
     
 private:
     EventLoop evtLoop;

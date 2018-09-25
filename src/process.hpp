@@ -8,7 +8,7 @@
 #include <functional>
 
 typedef std::function<void(int)> ProcessFinishedCallback;
-
+class Context;
 
 class Process {
 public:
@@ -18,6 +18,23 @@ public:
      * Starts the process, and calls the callback function when finished.
      */
     virtual void start(ProcessFinishedCallback onFinish) = 0;
+
+    /**
+     * Redirects local FD `fdLocal` to the process FD `fdProc`. Must be called
+     * before the process is started.
+     * 
+     * @param fdLocal  A currently open file descriptor
+     * @param fdProc   A file descriptor in the child process. Must be one of
+     *                 `STDIN_FILENO`, `STDOUT_FILENO`, or`STDERR_FILENO`.
+     */
+    void redirectIo(int fdLocal, int fdProc);
+
+protected:
+    struct IoRedir {
+        int oldfd;
+        int newfd;
+    };
+    std::vector<IoRedir> ioRedirs;
 };
 
 class LocalProcess : public Process {
@@ -36,14 +53,17 @@ private:
 
 class RemoteProcess : public Process {
 public:
-    RemoteProcess(ssh_session session, const std::vector<std::string>& args);
+    RemoteProcess(ssh_session session, Context* ctx, const std::vector<std::string>& args);
 
     void start(ProcessFinishedCallback onFinish);
 
 private:
+    Context* ctx = nullptr;
+    ssh_session session = nullptr;
     ssh_channel channel = nullptr;
     std::string cmd;
     ProcessFinishedCallback onFinish;
+    std::vector<ssh_connector> connectors;
 
     static int staticOnData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr, void* userdata);
     static void staticOnExitStatus(ssh_session session, ssh_channel channel, int status, void* userdata);

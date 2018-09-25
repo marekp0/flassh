@@ -19,8 +19,8 @@ public:
     void addSession(ssh_session session);
     void removeSession(ssh_session session);
 
-    void addChannel(ssh_channel channel);
-    void removeChannel(ssh_channel channel);
+    void addConnector(ssh_connector conn);
+    void removeConnector(ssh_connector conn);
 
     /**
      * A task that should be run on the event loop thread

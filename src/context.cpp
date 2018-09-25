@@ -76,7 +76,7 @@ Process* Context::createPocess(const std::string& hostAlias, const std::vector<s
     }
     else {
         Host* h = getHost(hostAlias);
-        return new RemoteProcess(h->getSession(), args);
+        return new RemoteProcess(h->getSession(), this, args);
     }
 }
 

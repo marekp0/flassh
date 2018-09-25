@@ -1,7 +1,8 @@
 #include "host.hpp"
+#include <unistd.h>
+#include <fcntl.h>
 #include <cstring>
 #include <stdexcept>
-#include <unistd.h>
 #include <regex>
 
 static int authenticate_kbdint(ssh_session session);
@@ -88,6 +89,13 @@ void Host::connect(const HostInfo& info)
 
     //authHost();   // TODO
     authUser();
+
+    // set O_CLOEXEC on the ssh socket
+    int fd = ssh_get_fd(session);
+    int flags = fcntl(fd, F_GETFL);
+    if (fcntl(fd, F_SETFL, flags | O_CLOEXEC) == -1) {
+        throw std::runtime_error("Failed to set O_CLOEXEC on FD");
+    }
 }
 
 void Host::authHost()
