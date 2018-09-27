@@ -19,8 +19,8 @@ public:
     void addSession(ssh_session session);
     void removeSession(ssh_session session);
 
-    void addConnector(ssh_connector conn);
-    void removeConnector(ssh_connector conn);
+    void addFdRead(int fd, ssh_event_callback callback, void* user);
+    void removeFdRead(int fd);
 
     /**
      * A task that should be run on the event loop thread

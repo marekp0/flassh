@@ -10,6 +10,11 @@
 typedef std::function<void(int)> ProcessFinishedCallback;
 class Context;
 
+struct IoRedir {
+    int oldfd;
+    int newfd;
+};
+
 class Process {
 public:
     virtual ~Process() = default;
@@ -30,10 +35,7 @@ public:
     void redirectIo(int fdLocal, int fdProc);
 
 protected:
-    struct IoRedir {
-        int oldfd;
-        int newfd;
-    };
+    // TODO: shouldn't need to keep this around
     std::vector<IoRedir> ioRedirs;
 };
 
@@ -62,17 +64,24 @@ private:
     ssh_session session = nullptr;
     ssh_channel channel = nullptr;
     std::string cmd;
+
+    int exitStatus = 1;
     ProcessFinishedCallback onFinish;
-    std::vector<ssh_connector> connectors;
 
     // workaround for libssh connectors bug
     // connectors sometimes cut off data at the end
+    // connector for stdin doesn't really work well with pipes
+    int stdinLocalFd;
     int stdoutLocalFd;
     int stderrLocalFd;
 
     static int staticOnData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr, void* userdata);
     static void staticOnExitStatus(ssh_session session, ssh_channel channel, int status, void* userdata);
+    static void staticOnClose(ssh_session session, ssh_channel channel, void* userdata);
 
     int onData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr);
     void onExitStatus(ssh_session, ssh_channel channel, int status);
+    void onClose(ssh_session, ssh_channel channel);
+
+    static int forwardFdToChannel(int fd, int revents, void* userdata);
 };

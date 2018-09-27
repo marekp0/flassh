@@ -69,15 +69,24 @@ Host* Context::getHost(const std::string& alias)
     return it->second;
 }
 
-Process* Context::createPocess(const std::string& hostAlias, const std::vector<std::string>& args)
+Process* Context::createPocess(const std::string& hostAlias, const std::vector<std::string>& args, const std::vector<IoRedir>& redirs)
 {
+    Process* p;
+
     if (hostAlias.empty()) {
-        return new LocalProcess(args);
+        p = new LocalProcess(args);
     }
     else {
         Host* h = getHost(hostAlias);
-        return new RemoteProcess(h->getSession(), this, args);
+        p = new RemoteProcess(h->getSession(), this, args);
     }
+
+    // TODO: just pass the vector
+    for (auto& r : redirs) {
+        p->redirectIo(r.oldfd, r.newfd);
+    }
+
+    return p;
 }
 
 void Context::execNextCommand()
@@ -89,7 +98,7 @@ void Context::execNextCommand()
     cmdQueue.pop_front();
     cmdExecuting = true;
     Context* ctx = this;    // for clarity
-    cmd->start(this, [ctx, cmd] (int exitStatus) {
+    cmd->start(this, {}, [ctx, cmd] (int exitStatus) {
         // this callback could be in any thread, so wrap in enqueueTask
         ctx->evtLoop.enqueueTask([ctx, cmd, exitStatus] () {
             ctx->cmdExecuting = false;

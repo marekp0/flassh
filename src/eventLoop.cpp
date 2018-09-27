@@ -48,18 +48,17 @@ void EventLoop::removeSession(ssh_session session)
     });
 }
 
-void EventLoop::addConnector(ssh_connector conn)
+void EventLoop::addFdRead(int fd, ssh_event_callback callback, void* user)
 {
-    enqueueTask([this, conn] () {
-        ssh_event_add_connector(evt, conn);
+    enqueueTask([=] () {
+        ssh_event_add_fd(evt, fd, POLLIN, callback, user);
     });
 }
 
-void EventLoop::removeConnector(ssh_connector conn)
+void EventLoop::removeFdRead(int fd)
 {
-    enqueueTask([this, conn] () {
-        ssh_event_remove_connector(evt, conn);
-    });
+    // wrapping in enqueueTask causes libssh to crash sometimes
+    ssh_event_remove_fd(evt, fd);
 }
 
 void EventLoop::enqueueTask(EventLoop::Task t)

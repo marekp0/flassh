@@ -31,6 +31,7 @@ enum NonTerminals {
     SET_HOST,
     OPT_SET_HOST,
     COMMAND,
+    COMMAND2,
     SIMPLE_COMMAND,
     PIPE_COMMAND,
     DEFINE_HOST,

@@ -99,6 +99,7 @@ RemoteProcess::RemoteProcess(ssh_session session, Context* ctx, const std::vecto
     cb->userdata = this;
     cb->channel_data_function = staticOnData;   // TODO: remove once libssh connectors work better
     cb->channel_exit_status_function = staticOnExitStatus;
+    cb->channel_close_function = staticOnClose;
     // TODO: signals
     ssh_callbacks_init(cb);
 
@@ -113,13 +114,6 @@ RemoteProcess::RemoteProcess(ssh_session session, Context* ctx, const std::vecto
 void RemoteProcess::start(ProcessFinishedCallback onFinish)
 {
     this->onFinish = onFinish;
-
-    int rc = ssh_channel_request_exec(channel, cmd.c_str());
-    if (rc != SSH_OK) {
-        ssh_channel_close(channel);
-        ssh_channel_free(channel);
-        throw std::runtime_error("ssh_channel_request_exec failed");
-    }
 
     // setup default connectors, validate filenos
     bool stdinRedirected = false;
@@ -144,33 +138,29 @@ void RemoteProcess::start(ProcessFinishedCallback onFinish)
     if (!stderrRedirected)
         redirectIo(STDERR_FILENO, STDERR_FILENO);
 
-    // create connectors
-    // TODO: these seem unreliable?
+    // TODO: change to libssh connectors if they become reliable enough
+    // setup info for callbacks to forward data to/from the ssh channel
     for (auto& r : ioRedirs) {
-        // TODO: handle errors!!!
-        //ssh_connector conn = ssh_connector_new(session);
         if (r.newfd == STDIN_FILENO) {
-            ssh_connector conn = ssh_connector_new(session);
-            ssh_connector_set_in_fd(conn, r.oldfd);
-            ssh_connector_set_out_channel(conn, channel, SSH_CONNECTOR_STDOUT);
-            connectors.push_back(conn);
-            ctx->getEvtLoop()->addConnector(conn);
+            stdinLocalFd = r.oldfd;
+            ctx->getEvtLoop()->addFdRead(r.oldfd, &RemoteProcess::forwardFdToChannel, this);
         }
         else {
-            // FIXME: libssh connectors with output file descriptors seem to
-            // sometimes drop the end of the output. For now, do things manually
             if (r.newfd == STDOUT_FILENO) {
                 stdoutLocalFd = r.oldfd;
             }
             else if (r.newfd == STDERR_FILENO) {
                 stderrLocalFd = r.oldfd;
             }
-            //auto flags = r.newfd == STDOUT_FILENO ? SSH_CONNECTOR_STDOUT : SSH_CONNECTOR_STDERR;
-            //ssh_connector_set_in_channel(conn, channel, flags);
-            //ssh_connector_set_out_fd(conn, r.oldfd);
         }
-        //connectors.push_back(conn);
-        //ctx->getEvtLoop()->addConnector(conn);
+    }
+
+    // start the process
+    int rc = ssh_channel_request_exec(channel, cmd.c_str());
+    if (rc != SSH_OK) {
+        ssh_channel_close(channel);
+        ssh_channel_free(channel);
+        throw std::runtime_error("ssh_channel_request_exec failed");
     }
 }
 
@@ -184,6 +174,12 @@ void RemoteProcess::staticOnExitStatus(ssh_session session, ssh_channel channel,
 {
     // forward to member function
     ((RemoteProcess*)userdata)->onExitStatus(session, channel, status);
+}
+
+void RemoteProcess::staticOnClose(ssh_session session, ssh_channel channel, void* userdata)
+{
+    // forward to member function
+    ((RemoteProcess*)userdata)->onClose(session, channel);
 }
 
 int RemoteProcess::onData(ssh_session session, ssh_channel channel, void* data, uint32_t len, int is_stderr)
@@ -213,13 +209,17 @@ void RemoteProcess::onExitStatus(ssh_session session, ssh_channel channel, int s
         exit(1);
     }
 
-    // cleanup connectors
-    for (auto c : connectors) {
-        ctx->getEvtLoop()->removeConnector(c);
-        ssh_connector_free(c);
-    }
-    connectors.clear();
+    // stop listening for events on the stdin FD
+    ctx->getEvtLoop()->removeFdRead(stdinLocalFd);
 
+    exitStatus = status;
+
+    // Don't call onFinish yet, because we may receive data after getting the
+    // exit status. Wait until onClose()
+}
+
+void RemoteProcess::onClose(ssh_session session, ssh_channel channel)
+{
     // cleanup channel
     ssh_set_blocking(session, 0);
     ssh_channel_close(channel);
@@ -228,5 +228,26 @@ void RemoteProcess::onExitStatus(ssh_session session, ssh_channel channel, int s
     ssh_set_blocking(session, 1);
 
     if (onFinish)
-        onFinish(status);
+        onFinish(exitStatus);
+}
+
+int RemoteProcess::forwardFdToChannel(int fd, int revents, void* userdata)
+{
+    char buf[4096];
+    RemoteProcess* pThis = (RemoteProcess*) userdata;
+    ssh_channel channel = pThis->channel;
+
+    // should not block because this is being called by the libssh event loop
+    int len = read(fd, buf, sizeof(buf));
+    if (len < 0)
+        return SSH_ERROR;       // ???
+    else if (len == 0) {
+        ssh_channel_send_eof(channel);
+        pThis->ctx->getEvtLoop()->removeFdRead(fd);
+    }
+    else {
+        ssh_channel_write(channel, buf, len);
+    }
+
+    return SSH_OK;
 }

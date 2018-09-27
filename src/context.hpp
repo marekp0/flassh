@@ -11,6 +11,7 @@ struct HostInfo;
 class Process;
 class Command;
 namespace std { class thread; }
+struct IoRedir;
 
 /**
  * Manages connections, variables, etc
@@ -35,7 +36,7 @@ public:
     Host* addHost(const std::string& alias, const HostInfo& info);
     Host* getHost(const std::string& alias);
 
-    Process* createPocess(const std::string& hostAlias, const std::vector<std::string>& args);
+    Process* createPocess(const std::string& hostAlias, const std::vector<std::string>& args, const std::vector<IoRedir>& redirs);
 
     EventLoop* getEvtLoop() { return &evtLoop; }
     

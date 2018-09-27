@@ -35,8 +35,11 @@ FlasshGrammar::FlasshGrammar()
     addRule({ OPT_SET_HOST, { SET_HOST }});
 
     addRule({ COMMAND, { SIMPLE_COMMAND }});
-    addRule({ PIPE_COMMAND, { COMMAND, OPT_SPACE, PIPE, OPT_SPACE, COMMAND } });
-    // TODO: COMMAND => PIPE_COMMAND, etc
+    addRule({ COMMAND, { PIPE_COMMAND }});
+
+    // TODO: automatic conversion of left-recursive rules
+    //addRule({ PIPE_COMMAND, { COMMAND, OPT_SPACE, PIPE, OPT_SPACE, COMMAND } });
+    addRule({ PIPE_COMMAND, { SIMPLE_COMMAND, OPT_SPACE, PIPE, OPT_SPACE, COMMAND } });
 
     addRule({ SIMPLE_COMMAND, { ARG_LIST } });
 
@@ -242,7 +245,7 @@ void Parser::enter(ParseTreeNode* n)
         for (auto an : argNodes) {
             args.push_back(an->concatTokens());
         }
-        commands.push(new SimpleCommand(hostAliasStack.top(), args));
+        cmdStack.push(new SimpleCommand(hostAliasStack.top(), args));
     }
     else if (n->getSymbol() == PIPE_COMMAND) {
         
@@ -260,7 +263,7 @@ void Parser::enter(ParseTreeNode* n)
             throw std::runtime_error("bad host definition");
         }
 
-        commands.push(new NewHostCommand(alias, info));
+        cmdStack.push(new NewHostCommand(alias, info));
     }
 }
 
@@ -268,6 +271,17 @@ void Parser::leave(ParseTreeNode* n)
 {
     if (n->getSymbol() == FULL_COMMAND) {
         hostAliasStack.pop();
+        if (!cmdStack.empty()) {
+            commands.push(cmdStack.top());
+            cmdStack.pop();
+        }
+    }
+    else if (n->getSymbol() == PIPE_COMMAND) {
+        auto right = cmdStack.top();
+        cmdStack.pop();
+        auto left = cmdStack.top();
+        cmdStack.pop();
+        cmdStack.push(new PipeCommand(left, right));
     }
 }
 
