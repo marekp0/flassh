@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <sstream>
 
 void runScript(const std::vector<std::string>& args);
 
@@ -45,17 +46,13 @@ void runScript(const std::vector<std::string>& args)
     }
 
     // read file into buffer
-    inFile.seekg(0, inFile.end);
-    int len = inFile.tellg();
-    inFile.seekg(0, inFile.beg);
-
-    std::string buf(len + 1, 0);
-    inFile.read(buf.data(), len);
-    buf[len] = '\n';
+    std::stringstream buffer;
+    buffer << inFile.rdbuf();
+    buffer << "\n";     // newline required to end commands
 
     Context ctx;
     Parser p;
-    p.parse(buf);
+    p.parse(buffer.str());
     if (!p.isComplete()) {
         fprintf(stderr, "flassh: Unexpected EOF\n");
         return;

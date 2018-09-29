@@ -46,7 +46,7 @@ features are currently missing, and things may break without warning.*
 
 
 ## Building
-Requires CMake 3.1+ and a C++17 compiler.
+Requires CMake 3.1+ and a C++17 compiler (gcc 7 or clang 6).
 
 ```
 mkdir ./build

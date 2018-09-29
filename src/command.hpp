@@ -21,6 +21,8 @@ public:
      */
     //Command(int line);
 
+    virtual ~Command() = default;
+
     /**
      * Starts running the command.
      * 

@@ -1,0 +1,37 @@
+language: cpp
+sudo: required
+
+matrix:
+  include:
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-7
+            - libssh-dev
+      before_install:
+        - export CC=gcc-7
+        - export CXX=g++-7
+        - .travis/install-libssh.sh
+
+    - os: linux
+      compiler: clang
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+            - llvm-toolchain-trusty-6.0
+          packages:
+            - clang-6.0
+      before_install:
+        - export CC=clang-6.0
+        - export CXX=clang++-6.0
+        - .travis/install-libssh.sh
+    
+script:
+  - mkdir -p build && cd build
+  - cmake ..
+  - make
