@@ -41,7 +41,13 @@ FlasshGrammar::FlasshGrammar()
     //addRule({ PIPE_COMMAND, { COMMAND, OPT_SPACE, PIPE, OPT_SPACE, COMMAND } });
     addRule({ PIPE_COMMAND, { SIMPLE_COMMAND, OPT_SPACE, PIPE, OPT_SPACE, COMMAND } });
 
-    addRule({ SIMPLE_COMMAND, { ARG_LIST } });
+    addRule({ SIMPLE_COMMAND, { OPT_CMD_HOST, ARG_LIST } });
+
+    addRule({ OPT_CMD_HOST, {} });
+    addRule({ OPT_CMD_HOST, { CMD_HOST } });
+
+    addRule({ CMD_HOST, { VARNAME, OPT_SPACE, COLON2, OPT_SPACE }});
+    addRule({ CMD_HOST, { COLON2, OPT_SPACE }});
 
     addRule({ DEFINE_HOST, { VARNAME, OPT_SPACE, COLON_EQ, OPT_SPACE, ARG, OPT_HOST_PORT }});
 
@@ -245,7 +251,18 @@ void Parser::enter(ParseTreeNode* n)
         for (auto an : argNodes) {
             args.push_back(an->concatTokens());
         }
-        cmdStack.push(new SimpleCommand(hostAliasStack.top(), args));
+        auto hostOverride = n->findSymbol(CMD_HOST);
+        std::string hostAlias;
+        if (!hostOverride.empty()) {
+            auto hostName = hostOverride.at(0)->findSymbol(VARNAME);
+            if (!hostName.empty()) {
+                hostAlias = hostName.at(0)->concatTokens();
+            }
+        }
+        else {
+            hostAlias = hostAliasStack.top();
+        }
+        cmdStack.push(new SimpleCommand(hostAlias, args));
     }
     else if (n->getSymbol() == PIPE_COMMAND) {
         

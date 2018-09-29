@@ -1,6 +1,4 @@
 #pragma once
-#include <map>
-#include <vector>
 
 namespace Symbols {
 
@@ -33,6 +31,8 @@ enum NonTerminals {
     COMMAND,
     COMMAND2,
     SIMPLE_COMMAND,
+    OPT_CMD_HOST,
+    CMD_HOST,
     PIPE_COMMAND,
     DEFINE_HOST,
     HOST_PORT,
