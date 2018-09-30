@@ -19,64 +19,43 @@ public:
  */
 FlasshGrammar::FlasshGrammar()
 {
-    // TODO: add some features of EBNF?
+    // TODO: automatic conversion of left-recursive rules?
     startSymbol = SCRIPT;
 
-    addRule({ SCRIPT, { OPT_SPACE, FULL_COMMAND, OPT_SPACE, NEWLINE, SCRIPT } });
-    addRule({ SCRIPT, {} });
+    addRule(SCRIPT, {{ ge0({ ge0(SPACE), FULL_COMMAND, ge0(SPACE), NEWLINE }) }});
 
-    addRule({ FULL_COMMAND, { OPT_SET_HOST, COMMAND_LIST } });
-    addRule({ FULL_COMMAND, { DEFINE_HOST } });
-    addRule({ FULL_COMMAND, {} });
+    addRule(FULL_COMMAND, {
+        { opt(SET_HOST), COMMAND_LIST },
+        { DEFINE_HOST },
+        {} });
 
-    addRule({ SET_HOST, { VARNAME, COLON, OPT_SPACE } });
+    addRule(SET_HOST, {{ VARNAME, ge0(SPACE), COLON, ge0(SPACE) }});
 
-    addRule({ OPT_SET_HOST, {} });
-    addRule({ OPT_SET_HOST, { SET_HOST }});
+    addRule(COMMAND_LIST, {
+        { COMMAND, ge0(SPACE), opt(SEMICOLON) },
+        { COMMAND, ge0(SPACE), SEMICOLON, ge0(SPACE), COMMAND_LIST }});
 
-    addRule({ COMMAND_LIST, { COMMAND, OPT_SPACE, OPT_SEMICOLON } });
-    addRule({ COMMAND_LIST, { COMMAND, OPT_SPACE, SEMICOLON, OPT_SPACE, COMMAND_LIST } });
+    addRule(COMMAND, {
+        { SIMPLE_COMMAND },
+        { PIPE_COMMAND }});
 
-    addRule({ COMMAND, { SIMPLE_COMMAND }});
-    addRule({ COMMAND, { PIPE_COMMAND }});
+    addRule(PIPE_COMMAND, {{ SIMPLE_COMMAND, ge0(SPACE), PIPE, ge0(SPACE_OR_NEWLINE), COMMAND }});
+    addRule(SIMPLE_COMMAND, {{ opt(CMD_HOST), ARG_LIST }});
+    addRule(CMD_HOST, {{ opt({ VARNAME, ge0(SPACE) }), COLON2, ge0(SPACE) }});
+    addRule(DEFINE_HOST, {{ VARNAME, ge0(SPACE), COLON_EQ, ge0(SPACE), ARG, opt(HOST_PORT) }});
+    addRule(HOST_PORT, {{ COLON, ARG }});
 
-    // TODO: automatic conversion of left-recursive rules
-    //addRule({ PIPE_COMMAND, { COMMAND, OPT_SPACE, PIPE, OPT_SPACE, COMMAND } });
-    addRule({ PIPE_COMMAND, { SIMPLE_COMMAND, OPT_SPACE, PIPE, OPT_SPACE_OR_NEWLINE, COMMAND } });
+    addRule(ARG_LIST, {
+        { ARG },
+        { ARG, ge1(SPACE), ARG_LIST }});
 
-    addRule({ SIMPLE_COMMAND, { OPT_CMD_HOST, ARG_LIST } });
+    addRule(ARG, {
+        { VARNAME },
+        { STR }});
 
-    addRule({ OPT_CMD_HOST, {} });
-    addRule({ OPT_CMD_HOST, { CMD_HOST } });
-
-    addRule({ CMD_HOST, { VARNAME, OPT_SPACE, COLON2, OPT_SPACE }});
-    addRule({ CMD_HOST, { COLON2, OPT_SPACE }});
-
-    addRule({ DEFINE_HOST, { VARNAME, OPT_SPACE, COLON_EQ, OPT_SPACE, ARG, OPT_HOST_PORT }});
-
-    addRule({ OPT_HOST_PORT, {} });
-    addRule({ OPT_HOST_PORT, { HOST_PORT } });
-    addRule({ HOST_PORT, { COLON, ARG } });
-
-    addRule({ ARG_LIST, { ARG }});
-    addRule({ ARG_LIST, { ARG, MULTI_SPACE, ARG_LIST } });
-
-    addRule({ ARG, { VARNAME } });
-    addRule({ ARG, { STR } });
-
-    addRule({ OPT_SPACE, {} });
-    addRule({ OPT_SPACE, { MULTI_SPACE } });
-    addRule({ MULTI_SPACE, { SPACE, MULTI_SPACE_2 } });
-    addRule({ MULTI_SPACE_2, {} });
-    addRule({ MULTI_SPACE_2, { SPACE, MULTI_SPACE_2 } });
-
-    addRule({ OPT_SEMICOLON, {} });
-    addRule({ OPT_SEMICOLON, { SEMICOLON } });
-
-    addRule({ SPACE_OR_NEWLINE, { SPACE } });
-    addRule({ SPACE_OR_NEWLINE, { NEWLINE } });
-    addRule({ OPT_SPACE_OR_NEWLINE, {} });
-    addRule({ OPT_SPACE_OR_NEWLINE, { SPACE_OR_NEWLINE, OPT_SPACE_OR_NEWLINE } });
+    addRule(SPACE_OR_NEWLINE, {
+        { SPACE },
+        { NEWLINE }});
 }
 
 
@@ -288,7 +267,7 @@ void Parser::enter(ParseTreeNode* n)
         // get username, hostname, and port
         HostInfo info;
         std::string hostStr = n->findSymbol(ARG).at(0)->concatTokens();
-        hostStr += n->findSymbol(OPT_HOST_PORT).at(0)->concatTokens();
+        hostStr += n->findSymbol(flasshGrammar.opt(HOST_PORT)).at(0)->concatTokens();
         
         if (!info.parse(hostStr)) {
             throw std::runtime_error("bad host definition");

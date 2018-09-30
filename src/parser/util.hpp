@@ -5,12 +5,14 @@
 #include <stack>
 #include <functional>
 
+typedef std::vector<int> SymbolSeq;
+
 /**
  * A production rule for a context-free grammar
  */
 struct ProductionRule {
     int nonTerminal;
-    std::vector<int> replacement;
+    SymbolSeq replacement;
 };
 
 /**
@@ -18,10 +20,44 @@ struct ProductionRule {
  */
 class ContextFreeGrammar {
 public:
-    void addRule(const ProductionRule& rule);
+    /**
+     * Adds a new production rule to the grammar of the form
+     * `lhs ==> rhs[0] | rhs[1] | ... | rhs[n]`.
+     */
+    void addRule(int lhs, const std::vector<SymbolSeq>& rhs);
+
+    /**
+     * Returns a new non-terminal symbol representing either 0 or 1 of the
+     * input symbol sequence
+     */
+    int opt(const SymbolSeq& symbols);
+    int opt(int symb) { return opt(SymbolSeq{ symb }); }
+
+    /**
+     * Returns a new non-terminal symbol representing 0 or more of the input
+     * symbol sequence
+     */
+    int ge0(const SymbolSeq& symbols);
+    int ge0(int symb) { return ge0(SymbolSeq{ symb }); }
+
+    /**
+     * Returns a new non-terminal symbol representing 1 or more of the input
+     * symbol sequence
+     */
+    int ge1(const SymbolSeq& symbols);
+    int ge1(int symb) { return ge1(SymbolSeq{ symb }); }
 
     std::map<int, std::vector<ProductionRule>> rules;
     int startSymbol;
+
+private:
+    // a "virtual symbol" is created implicitly by optional(), etc
+    int nextVirtSymbol = -1;
+
+    // reuse virtual symbols when possible
+    std::map<SymbolSeq, int> optionalSymbols;
+    std::map<SymbolSeq, int> atLeast0Symbols;
+    std::map<SymbolSeq, int> atLeast1Symbols;
 };
 
 /**

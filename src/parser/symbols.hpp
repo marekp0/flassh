@@ -27,30 +27,21 @@ enum NonTerminals {
     SCRIPT = NUM_TERMINAL_SYMBOLS,
     FULL_COMMAND,
     SET_HOST,
-    OPT_SET_HOST,
+    COMMAND_LIST,
     COMMAND,
-    COMMAND2,
     SIMPLE_COMMAND,
-    OPT_CMD_HOST,
     CMD_HOST,
     PIPE_COMMAND,
     DEFINE_HOST,
     HOST_PORT,
-    OPT_HOST_PORT,
     ARG,
     ARG_LIST,
-    OPT_SPACE,
-    MULTI_SPACE,
-    MULTI_SPACE_2,
-    OPT_SEMICOLON,
-    COMMAND_LIST,
     SPACE_OR_NEWLINE,
-    OPT_SPACE_OR_NEWLINE,
 };
 
 inline bool isTerminal(int symbol)
 {
-    return symbol < NUM_TERMINAL_SYMBOLS;
+    return symbol < NUM_TERMINAL_SYMBOLS && symbol >= 0;
 }
 
 }   // namespace symbols

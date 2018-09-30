@@ -2,9 +2,57 @@
 #include "symbols.hpp"
 #include "lexer.hpp"
 
-void ContextFreeGrammar::addRule(const ProductionRule& rule)
+void ContextFreeGrammar::addRule(int lhs, const std::vector<SymbolSeq>& rhs)
 {
-    rules[rule.nonTerminal].push_back(rule);
+    for (auto& r : rhs) {
+        rules[lhs].push_back(ProductionRule{ lhs, r });
+    }
+}
+
+int ContextFreeGrammar::opt(const SymbolSeq& symbols)
+{
+    // get existing symbol if we already made one for this sequence
+    auto it = optionalSymbols.find(symbols);
+    if (it != optionalSymbols.end())
+        return it->second;
+
+    // OPT_X ==> <empty> | X
+    int sym = nextVirtSymbol--;
+    optionalSymbols[symbols] = sym;
+    addRule(sym, { {}, symbols });
+    return sym;
+}
+
+int ContextFreeGrammar::ge0(const SymbolSeq& symbols)
+{
+    // get existing symbol if we already made one for this sequence
+    auto it = atLeast0Symbols.find(symbols);
+    if (it != atLeast0Symbols.end())
+        return it->second;
+
+    // AT_LEAST_0_X ==> <empty> | X AT_LEAST_0_X
+    int sym = nextVirtSymbol--;
+    atLeast0Symbols[symbols] = sym;
+    SymbolSeq rhs = symbols;
+    rhs.push_back(sym);
+    addRule(sym, { {}, rhs });
+    return sym;
+}
+
+int ContextFreeGrammar::ge1(const SymbolSeq& symbols)
+{
+    // get existing symbol if we already made one for this sequence
+    auto it = atLeast1Symbols.find(symbols);
+    if (it != atLeast1Symbols.end())
+        return it->second;
+
+    // AT_LEAST_1_X ==> X AT_LEAST_0_X
+    int sym = nextVirtSymbol--;
+    atLeast1Symbols[symbols] = sym;
+    SymbolSeq rhs = symbols;
+    rhs.push_back(ge0(symbols));
+    addRule(sym, { rhs });
+    return sym;
 }
 
 
