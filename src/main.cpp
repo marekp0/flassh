@@ -7,7 +7,7 @@
 #include <string>
 #include <sstream>
 
-void runScript(const std::vector<std::string>& args);
+int runScript(const std::vector<std::string>& args);
 
 int main(int argc, char** argv)
 {
@@ -32,17 +32,19 @@ int main(int argc, char** argv)
         for (int i = 1; i < argc; i++) {
             args.push_back(argv[i]);
         }
-        runScript(args);
+        return runScript(args);
     }
     return 0;
 }
 
-void runScript(const std::vector<std::string>& args)
+int runScript(const std::vector<std::string>& args)
 {
+    // http://tldp.org/LDP/abs/html/exitcodes.html
+    // TODO: give names to these return value constants
     std::ifstream inFile(args[0], std::ios::binary);
     if (!inFile) {
         fprintf(stderr, "flassh: failed to open %s\n", args[0].c_str());
-        return;
+        return 127;
     }
 
     // read file into buffer
@@ -55,11 +57,13 @@ void runScript(const std::vector<std::string>& args)
     p.parse(buffer.str());
     if (!p.isComplete()) {
         fprintf(stderr, "flassh: Unexpected EOF\n");
-        return;
+        return 2;
     }
     Command* c = nullptr;
     while ((c = p.popCommand()) != nullptr) {
         ctx.enqueueCommand(c);
     }
     ctx.flushCmdQueue();
+
+    return 0;
 }

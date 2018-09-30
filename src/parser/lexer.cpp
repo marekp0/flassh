@@ -26,7 +26,7 @@ Token* Lexer::popToken()
         return nullptr;
 
     auto ret = tokenQueue.front();
-    tokenQueue.pop();
+    tokenQueue.pop_front();
     return ret;
 }
 
@@ -79,7 +79,7 @@ void Lexer::pushToken(int symbol)
         curTok->symbol = VARNAME;
     }
 
-    tokenQueue.push(curTok);
+    tokenQueue.push_back(curTok);
     curTok = nullptr;
     tokenWasEverQuotedOrEscaped = false;
 }
@@ -242,8 +242,8 @@ void Lexer::handleQuoted(char c)
         nextHandler = &Lexer::handleDefault;
         quote = 0;
     }
-    // backslash: go to QuotedEscaped state
-    else if (c == '\\') {
+    // backslash: go to QuotedEscaped state if inside double quote
+    else if (c == '\\' && quote == '\"') {
         nextHandler = &Lexer::handleQuotedEscaped;
     }
     // otherwise: write character as-is

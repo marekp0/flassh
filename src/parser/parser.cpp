@@ -22,10 +22,10 @@ FlasshGrammar::FlasshGrammar()
     // TODO: add some features of EBNF?
     startSymbol = SCRIPT;
 
-    addRule({ SCRIPT, { FULL_COMMAND, NEWLINE, SCRIPT } });
+    addRule({ SCRIPT, { OPT_SPACE, FULL_COMMAND, OPT_SPACE, NEWLINE, SCRIPT } });
     addRule({ SCRIPT, {} });
 
-    addRule({ FULL_COMMAND, { OPT_SET_HOST, COMMAND } });
+    addRule({ FULL_COMMAND, { OPT_SET_HOST, COMMAND_LIST } });
     addRule({ FULL_COMMAND, { DEFINE_HOST } });
     addRule({ FULL_COMMAND, {} });
 
@@ -34,12 +34,15 @@ FlasshGrammar::FlasshGrammar()
     addRule({ OPT_SET_HOST, {} });
     addRule({ OPT_SET_HOST, { SET_HOST }});
 
+    addRule({ COMMAND_LIST, { COMMAND, OPT_SPACE, OPT_SEMICOLON } });
+    addRule({ COMMAND_LIST, { COMMAND, OPT_SPACE, SEMICOLON, OPT_SPACE, COMMAND_LIST } });
+
     addRule({ COMMAND, { SIMPLE_COMMAND }});
     addRule({ COMMAND, { PIPE_COMMAND }});
 
     // TODO: automatic conversion of left-recursive rules
     //addRule({ PIPE_COMMAND, { COMMAND, OPT_SPACE, PIPE, OPT_SPACE, COMMAND } });
-    addRule({ PIPE_COMMAND, { SIMPLE_COMMAND, OPT_SPACE, PIPE, OPT_SPACE, COMMAND } });
+    addRule({ PIPE_COMMAND, { SIMPLE_COMMAND, OPT_SPACE, PIPE, OPT_SPACE_OR_NEWLINE, COMMAND } });
 
     addRule({ SIMPLE_COMMAND, { OPT_CMD_HOST, ARG_LIST } });
 
@@ -56,13 +59,24 @@ FlasshGrammar::FlasshGrammar()
     addRule({ HOST_PORT, { COLON, ARG } });
 
     addRule({ ARG_LIST, { ARG }});
-    addRule({ ARG_LIST, { ARG, SPACE, ARG_LIST } });
+    addRule({ ARG_LIST, { ARG, MULTI_SPACE, ARG_LIST } });
 
     addRule({ ARG, { VARNAME } });
     addRule({ ARG, { STR } });
 
     addRule({ OPT_SPACE, {} });
-    addRule({ OPT_SPACE, { SPACE } });
+    addRule({ OPT_SPACE, { MULTI_SPACE } });
+    addRule({ MULTI_SPACE, { SPACE, MULTI_SPACE_2 } });
+    addRule({ MULTI_SPACE_2, {} });
+    addRule({ MULTI_SPACE_2, { SPACE, MULTI_SPACE_2 } });
+
+    addRule({ OPT_SEMICOLON, {} });
+    addRule({ OPT_SEMICOLON, { SEMICOLON } });
+
+    addRule({ SPACE_OR_NEWLINE, { SPACE } });
+    addRule({ SPACE_OR_NEWLINE, { NEWLINE } });
+    addRule({ OPT_SPACE_OR_NEWLINE, {} });
+    addRule({ OPT_SPACE_OR_NEWLINE, { SPACE_OR_NEWLINE, OPT_SPACE_OR_NEWLINE } });
 }
 
 
@@ -288,9 +302,15 @@ void Parser::leave(ParseTreeNode* n)
 {
     if (n->getSymbol() == FULL_COMMAND) {
         hostAliasStack.pop();
-        if (!cmdStack.empty()) {
-            commands.push(cmdStack.top());
+        // push all commands on the command stack to the command queue in reverse order
+        std::stack<Command*> reverseCmdStack;
+        while (!cmdStack.empty()) {
+            reverseCmdStack.push(cmdStack.top());
             cmdStack.pop();
+        }
+        while (!reverseCmdStack.empty()) {
+            commands.push(reverseCmdStack.top());
+            reverseCmdStack.pop();
         }
     }
     else if (n->getSymbol() == PIPE_COMMAND) {

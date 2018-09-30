@@ -2,7 +2,7 @@
 
 #include <string>
 #include <vector>
-#include <queue>
+#include <deque>
 
 struct Token {
     int line;
@@ -37,7 +37,7 @@ private:
     int col = 1;
 
     Token* curTok = nullptr;
-    std::queue<Token*> tokenQueue;
+    std::deque<Token*> tokenQueue;
 
     /**
      * Pushes a character to the current token

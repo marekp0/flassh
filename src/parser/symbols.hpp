@@ -40,6 +40,12 @@ enum NonTerminals {
     ARG,
     ARG_LIST,
     OPT_SPACE,
+    MULTI_SPACE,
+    MULTI_SPACE_2,
+    OPT_SEMICOLON,
+    COMMAND_LIST,
+    SPACE_OR_NEWLINE,
+    OPT_SPACE_OR_NEWLINE,
 };
 
 inline bool isTerminal(int symbol)
